@@ -3,7 +3,7 @@
 <head>
     <title>All Grades</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 30px; }
+        body { margin: 30px; }
         input, button { padding: 8px; margin: 5px; }
         table { border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #000; padding: 8px; }
@@ -16,61 +16,72 @@
         <input type="number" name="grade" step="0.01" placeholder="Grade" required>
         <button type="submit">Submit</button>
     </form>
-
     <h2>All Student Grades</h2>
     <table id="gradesTable">
         <tr><th>Student ID</th><th>Grade</th></tr>
     </table>
     <h3 id="average">Average Grade: N/A</h3>
-
     <script>
         const form = document.getElementById('gradeForm');
         const table = document.getElementById('gradesTable');
         const avgEl = document.getElementById('average');
-        const API_URL = 'https://5qhoymxj33.execute-api.us-east-1.amazonaws.com/prod/grade';
+        const API_URL = 'https://5qhoymxj33.execute-api.us-east-1.amazonaws.com/prod/grades';
 
-        // Store all grades locally 
-        let grades = [];
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const formData = new FormData(form);
-            const student_id = formData.get('student_id');
-            const grade = formData.get('grade');
-
+        // Load all grades from database
+        async function loadGrades() {
             try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_id, grade })
-                });
-
+                const response = await fetch(API_URL, { method: 'GET' });
                 const data = await response.json();
-
+                
                 if (response.ok) {
-                    // Add new grade to local array
-                    grades.push({ student_id, grade: parseFloat(grade) });
-
-                    // Refresh table
+                    const grades = data.grades || [];
+                    
+                    // Update table
                     table.innerHTML = '<tr><th>Student ID</th><th>Grade</th></tr>';
                     grades.forEach(g => {
                         const row = table.insertRow();
                         row.insertCell(0).textContent = g.student_id;
                         row.insertCell(1).textContent = g.grade;
                     });
-
+                    
                     // Update average
-                    avgEl.textContent = `Average Grade: ${data.average.toFixed(2)}`;
-                } else {
-                    alert('Error: ' + data.error);
+                    const avg = data.average !== undefined ? parseFloat(data.average) : 0;
+                    avgEl.textContent = `Average Grade: ${avg.toFixed(2)}`;
                 }
+            } catch (err) {
+                console.error('Error loading grades:', err);
+            }
+        }
 
-                form.reset();
+        // Submit new grade
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const student_id = formData.get('student_id');
+            const grade = parseFloat(formData.get('grade'));
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id, grade })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Reloads grades from database to get updated average
+                    await loadGrades();
+                    form.reset();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
             } catch (err) {
                 alert('Error connecting to API: ' + err);
             }
         });
+
+        // Load grades 
+        loadGrades();
     </script>
 </body>
 </html>
